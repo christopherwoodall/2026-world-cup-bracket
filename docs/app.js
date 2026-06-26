@@ -64,10 +64,9 @@ const App = () => {
 
     const removeTeamFromBracket = (matchIndex, isTeam1) => {
         const newRounds = { ...rounds };
-        const teamToRemove = isTeam1 ? newRounds[0][matchIndex].team1 : newRounds[0][matchIndex].team2;
         if (isTeam1) newRounds[0][matchIndex].team1 = null;
         else newRounds[0][matchIndex].team2 = null;
-        cascadeClear(newRounds, 0, matchIndex, teamToRemove);
+        cascadeClear(newRounds, 0, matchIndex);
         setRounds(newRounds);
     };
 
@@ -84,24 +83,46 @@ const App = () => {
             if (isTeam1) newRounds[nextRound][nextMatchIndex].team1 = selectedTeam;
             else newRounds[nextRound][nextMatchIndex].team2 = selectedTeam;
 
-            cascadeClear(newRounds, nextRound, nextMatchIndex, selectedTeam);
+            cascadeClear(newRounds, nextRound, nextMatchIndex);
         }
         setRounds(newRounds);
     };
 
-    const cascadeClear = (currentRounds, startRound, startMatchIndex, validTeam) => {
-        for (let r = startRound; r <= 4; r++) {
-            let mIdx = Math.floor(startMatchIndex / Math.pow(2, r - startRound));
-            let match = currentRounds[r][mIdx];
-            if (match.winner && match.winner.id !== validTeam.id &&
-               (match.team1?.id === validTeam.id || match.team2?.id === validTeam.id)) {
-                match.winner = null;
-                if (r < 4) {
-                    let nextMIdx = Math.floor(mIdx / 2);
-                    if (mIdx % 2 === 0) currentRounds[r + 1][nextMIdx].team1 = null;
-                    else currentRounds[r + 1][nextMIdx].team2 = null;
+    const cascadeClear = (currentRounds, startRound, startMatchIndex) => {
+        const startMatch = currentRounds[startRound][startMatchIndex];
+        if (startMatch.winner) {
+            const wId = startMatch.winner.id;
+            const t1Id = startMatch.team1 ? startMatch.team1.id : null;
+            const t2Id = startMatch.team2 ? startMatch.team2.id : null;
+            if (wId !== t1Id && wId !== t2Id) {
+                startMatch.winner = null;
+            }
+        }
+
+        let currMatchIdx = startMatchIndex;
+        for (let currRound = startRound; currRound <= 3; currRound++) {
+            const nextRound = currRound + 1;
+            const nextMatchIdx = Math.floor(currMatchIdx / 2);
+            const currentMatch = currentRounds[currRound][currMatchIdx];
+            const nextMatch = currentRounds[nextRound][nextMatchIdx];
+
+            const isTeam1 = currMatchIdx % 2 === 0;
+            if (isTeam1) {
+                nextMatch.team1 = currentMatch.winner;
+            } else {
+                nextMatch.team2 = currentMatch.winner;
+            }
+
+            if (nextMatch.winner) {
+                const wId = nextMatch.winner.id;
+                const t1Id = nextMatch.team1 ? nextMatch.team1.id : null;
+                const t2Id = nextMatch.team2 ? nextMatch.team2.id : null;
+                if (wId !== t1Id && wId !== t2Id) {
+                    nextMatch.winner = null;
                 }
             }
+
+            currMatchIdx = nextMatchIdx;
         }
     };
 
@@ -109,18 +130,23 @@ const App = () => {
         setIsExporting(true);
         // Allow DOM to snap to large fixed dimensions for export
         setTimeout(async () => {
-            const element = exportRef.current;
-            const canvas = await html2canvas(element, {
-                backgroundColor: '#060913',
-                scale: 2,
-                useCORS: true,
-                logging: false
-            });
-            const link = document.createElement('a');
-            link.download = '2026-Knockout-Predictor.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-            setIsExporting(false);
+            try {
+                const element = exportRef.current;
+                const canvas = await html2canvas(element, {
+                    backgroundColor: '#060913',
+                    scale: 2,
+                    useCORS: true,
+                    logging: false
+                });
+                const link = document.createElement('a');
+                link.download = '2026-Knockout-Predictor.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            } catch (error) {
+                console.error("Failed to export bracket:", error);
+            } finally {
+                setIsExporting(false);
+            }
         }, 400);
     };
 
